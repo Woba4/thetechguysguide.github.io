@@ -1,88 +1,100 @@
 # -----------------------------
-# Legal Disclaimer: 
+# Tuyên bố miễn trừ trách nhiệm pháp lý:
 # -----------------------------
-# This script is provided "as is" and without any express or implied warranties, including, without limitation, the implied warranties of merchantability and fitness for a particular purpose. 
-# The author of this script assumes no liability for any damage or data loss caused by the use of this script, directly or indirectly. 
-# It is the user's responsibility to thoroughly review, test, and modify this script before deploying it in a production environment.
-# This script is intended for educational and informational purposes only. Use it at your own risk and discretion.
-# Thoroughly test in a none production environment
+# Script này được cung cấp "nguyên trạng" và không có bất kỳ đảm bảo nào, 
+# bao gồm nhưng không giới hạn, các đảm bảo ngụ ý về khả năng thương mại 
+# hoặc phù hợp với một mục đích cụ thể.
+# Tác giả của script này không chịu trách nhiệm với bất kỳ thiệt hại hoặc mất mát dữ liệu nào 
+# gây ra bởi việc sử dụng script này, trực tiếp hoặc gián tiếp.
+# Người dùng có trách nhiệm tự xem xét kỹ lưỡng, kiểm tra, và sửa đổi script này 
+# trước khi triển khai trong môi trường sản xuất.
+# Script này chỉ nhằm mục đích giáo dục và cung cấp thông tin. 
+# Sử dụng script này là hoàn toàn tự chịu rủi ro và cân nhắc cá nhân.
+# Hãy kiểm tra kỹ lưỡng trong môi trường không phải production.
 
 # -----------------------------
-# Purpose of This Script:
+# Mục đích của Script này:
 # -----------------------------
-# The primary purpose of this script is to integrate Microsoft Windows DHCP server scopes and leases with the phpIPAM IP Address Management (IPAM) system. 
-# The script retrieves all DHCP scopes and leases from a Windows DHCP server and then updates phpIPAM with the subnet details and IP addresses, ensuring that the phpIPAM database reflects the current state of the DHCP server.
-# It also optionally updates custom fields for lease duration (`custom_leaseDuration`) and subnet state (`custom_subnetState`), allowing phpIPAM users to track DHCP lease and subnet information.
-# Note:  The leases are coming in a second release
+# Mục đích chính của script là tích hợp các scope và lease của DHCP server Windows 
+# với hệ thống quản lý địa chỉ IP phpIPAM.
+# Script sẽ lấy tất cả DHCP scopes và leases từ Windows DHCP server 
+# và sau đó cập nhật phpIPAM với thông tin subnet, đảm bảo rằng cơ sở dữ liệu phpIPAM 
+# phản ánh đúng trạng thái hiện tại của DHCP server.
+# Script cũng có thể tùy chọn cập nhật các trường tùy chỉnh 
+# cho thời gian lease (`custom_leaseDuration`) và trạng thái subnet (`custom_subnetState`), 
+# cho phép người dùng phpIPAM theo dõi thông tin lease và subnet từ DHCP.
+# Lưu ý: Các lease sẽ được xử lý trong bản phát hành thứ hai.
 
-# Functionality Summary:
-# 1. Retrieves all DHCP scopes from the Windows DHCP server.
-# 2. Updates phpIPAM with the subnet details (e.g., description, lease duration, subnet state).
-#		-   The script can be set up to run manually or scheduled to run automatically as a Windows Task Scheduler job 
-#			on the DHCP server itself or another machine with network access to the DHCP server (you must have rsat tools installed and have admin rights assigned on the server).
-# 3. Optionally logs all operations to a file for auditing and troubleshooting purposes.
-# 4. Supports custom fields in phpIPAM for storing lease duration and subnet state.
-# 5. Optionally performs host checks (ping) before adding IPs to phpIPAM.
+# Tóm tắt chức năng:
+# 1. Lấy tất cả DHCP scopes từ Windows DHCP server.
+# 2. Cập nhật phpIPAM với thông tin subnet (VD mô tả, thời gian lease, trạng thái subnet).
+#    - Script có thể chạy thủ công hoặc chạy tự động bằng Windows Task Scheduler
+#      trên chính DHCP server hoặc một máy khác có quyền truy cập vào DHCP server 
+#      (bạn phải cài RSAT và có quyền admin trên server).
+# 3. Tùy chọn ghi log cho toàn bộ hoạt động để phục vụ audit và xử lý lỗi.
+# 4. Hỗ trợ các trường tùy chỉnh trong phpIPAM để lưu thời gian lease và trạng thái subnet.
+# 5. Tùy chọn kiểm tra host (ping) trước khi thêm IP vào phpIPAM.
 
 # -----------------------------
-# Configuration Instructions:
+# Hướng dẫn cấu hình:
 # -----------------------------
-# Required Items for Script to Work:
-# 1. phpIPAM API Base URL, Section ID, and API Token.
-# 2. The PowerShell script should be run on a machine that has access to a Windows DHCP server and the script needs Admin rights
-# 3. Ensure the following custom fields are defined in phpIPAM (if using them):
-#    - `custom_leaseDuration`: Used to store the DHCP lease duration (Optional).
-#    - `custom_subnetState`: Used to store the subnet state ("active" or "inactive") (Optional).
-#    - `pingSubnet`: Controls whether a subnet should be included in status checks (Default: 0/off).
-#    - `scanAgent`: Assigns a scan agent for scanning the subnet (Default: 1).
-# 4. Powershell 5.1 this is what the script was written this has not been tested at all in Powershell 7.x
-#
-# Optional Settings:
-# 1. `$useLeaseDuration`: Set to `$true` to update the lease duration field in phpIPAM.
-# 2. `$useSubnetState`: Set to `$true` to update the subnet state field in phpIPAM.
-# 3. `$checkHost`: Set to `$true` to perform host checks (ping) for each IP in the lease before adding to phpIPAM.
-# 4. `$logToFileSubnet`: Set to `$true` to log the subnet processing to a file. 
-# 5. `$logToFileLeases`: Set to `$true` to log the lease processing to a file.
-# 6. `$descriptionPrefix`: Set the prefix for IP descriptions when adding them to phpIPAM.
+# Các yêu cầu bắt buộc để script hoạt động:
+# 1. Địa chỉ API base URL của phpIPAM, ID của Section, và API Token.
+# 2. Script PowerShell phải được chạy trên máy có quyền truy cập vào DHCP server Windows 
+#    và script phải chạy với quyền Administrator.
+# 3. Đảm bảo phpIPAM đã có các custom fields sau (nếu dùng):
+#    - `custom_leaseDuration`: Dùng để lưu thời gian lease của DHCP (tùy chọn).
+#    - `custom_subnetState`: Lưu trạng thái subnet ("active" hoặc "inactive") (tùy chọn).
+#    - `pingSubnet`: Kiểm soát việc subnet có được scan trạng thái hay không (mặc định: 0/tắt).
+#    - `scanAgent`: Gán scan agent để quét subnet (mặc định: 1).
+# 4. PowerShell 5.1 — script này được viết cho phiên bản này, chưa test trên PowerShell 7.x.
 
-# Running as a Scheduled Task:
+# Các tùy chọn:
+# 1. `$useLeaseDuration`: đặt `$true` nếu muốn cập nhật trường lease duration vào phpIPAM.
+# 2. `$useSubnetState`: đặt `$true` nếu muốn cập nhật trạng thái subnet.
+# 3. `$checkHost`: đặt `$true` nếu muốn ping host trước khi thêm IP vào phpIPAM.
+# 4. `$logToFileSubnet`: đặt `$true` để ghi log quá trình xử lý subnet vào file.
+# 5. `$logToFileLeases`: đặt `$true` để ghi log quá trình xử lý lease.
+# 6. `$descriptionPrefix`: đặt tiền tố cho mô tả khi thêm IP vào phpIPAM.
+
+# Chạy như Scheduled Task:
 # ----------------------------
-# You can set up this script to run automatically by adding it as a scheduled task in Windows Task Scheduler.
-# 1. Open Task Scheduler.
-# 2. Create a new task.
-# 3. Set the trigger to run the task at your desired interval (e.g., hourly, daily).
-# 4. Set the action to "Start a program" and point it to the PowerShell executable (`powershell.exe`).
-# 5. In the arguments field, provide the path to the script (e.g., `-File C:\path\to\script.ps1`).
-# 6. Ensure that the task is set to run under an account with sufficient permissions to access both the DHCP server and phpIPAM.
+# Bạn có thể thiết lập script chạy tự động bằng Task Scheduler.
+# 1. Mở Task Scheduler.
+# 2. Tạo task mới.
+# 3. Chọn trigger theo thời gian mong muốn (VD chạy mỗi giờ, mỗi ngày,...).
+# 4. Trong Action → chọn "Start a program" và trỏ tới PowerShell (`powershell.exe`).
+# 5. Trong Arguments, thêm đường dẫn file script (VD `-File C:\path\script.ps1`).
+# 6. Đảm bảo task chạy dưới tài khoản có quyền truy cập DHCP server và phpIPAM.
 
 # -----------------------------
-# Define your phpIPAM API base, section ID, and API token
+# Khai báo URL API, Section ID, Token của phpIPAM
 # -----------------------------
 $apiBase = "https://yourserverIPorNAME/api/APPID"
 $token = "APP code goes here"
 $sectionId = Numeric Value of the section example (3)
 
-# Optional feature flags
-$useLeaseDuration = $false   # Set to $true to use the lease duration custom field in phpIPAM.
-$useSubnetState = $false     # Set to $true to use the subnet state custom field in phpIPAM.
-$descriptionPrefix = "Imported from WIN DHCP"  # Set a description prefix for IP and subnet entries in phpIPAM.
+# Tùy chọn bật tắt các tính năng
+$useLeaseDuration = $false
+$useSubnetState = $false
+$descriptionPrefix = "Imported from WIN DHCP"
 
-# Set default values for scanAgent and pingSubnet if they are not provided
-$scanAgent = 1        # Set to your default scan agent ID 
-$pingSubnet = 1       # Set to 0 to disable pinging, or 1 to enable pinging
+# Giá trị mặc định
+$scanAgent = 1
+$pingSubnet = 1
 
-# Custom field variables
-$leaseDurationField = "leaseDuration"  # Custom field for storing the DHCP lease duration in phpIPAM.
-$subnetStateField = "subnetState"      # Custom field for storing the subnet state ("active" or "inactive") in phpIPAM.
+# Custom fields
+$leaseDurationField = "leaseDuration"
+$subnetStateField = "subnetState"
 
-# Disable SSL certificate validation (only if necessary for self-signed certificates)
+# Vô hiệu hóa kiểm tra chứng chỉ SSL (nếu phpIPAM dùng SSL tự ký)
 [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
 
-# Enforce TLS 1.2 for secure communications with the phpIPAM API.
+# Bắt buộc dùng TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 # -----------------------------
-# Log function: Writes to console and optionally to a log file
+# Hàm ghi log
 # -----------------------------
 function Write-Log {
     param (
@@ -96,37 +108,33 @@ function Write-Log {
     Write-Host $logMessage
 
     if ($logToFile) {
-        # Ensure the logs directory exists
         $logDirectory = [System.IO.Path]::GetDirectoryName($logFile)
         if (-not (Test-Path $logDirectory)) {
             New-Item -Path $logDirectory -ItemType Directory -Force
         }
-
-        # Write to the log file
         Add-Content -Path $logFile -Value $logMessage
     }
 }
 
-# Function to convert subnet mask to CIDR notation
+# -----------------------------
+# Hàm chuyển subnet mask sang CIDR
+# -----------------------------
 function Convert-MaskToCIDR {
-    param (
-        [string]$mask
-    )
+    param ([string]$mask)
 
-    # Split the mask into octets
     $octets = $mask.Split('.')
-
-    # Convert each octet to binary and count the number of 1's
     $cidr = 0
-    foreach ($octet in $octets) {
-        $binaryOctet = [Convert]::ToString([int]$octet, 2) # Convert octet to binary
-        $cidr += ($binaryOctet -split '1').Length - 1       # Count the 1's
-    }
 
+    foreach ($octet in $octets) {
+        $binaryOctet = [Convert]::ToString([int]$octet, 2)
+        $cidr += ($binaryOctet -split '1').Length - 1
+    }
     return $cidr
 }
 
-# Function to log API response errors for more detail
+# -----------------------------
+# Log lỗi API
+# -----------------------------
 function Log-ApiError {
     param (
         [System.Management.Automation.ErrorRecord]$exception,
@@ -136,7 +144,6 @@ function Log-ApiError {
     $errorMessage = "Exception: $($exception.Exception.Message)"
     Write-Log $errorMessage $logToFile
 
-    # Check if there's a web response available
     if ($exception.Exception -is [System.Net.WebException]) {
         $webException = $exception.Exception
         if ($webException.Response) {
@@ -145,31 +152,31 @@ function Log-ApiError {
             $errorResult = $reader.ReadToEnd()
             Write-Log "Detailed error response: $errorResult" $logToFile
         }
-    }
-    else {
+    } else {
         Write-Log "No detailed web exception response available." $logToFile
     }
 }
 
-# Function to create a subnet in phpIPAM
+# -----------------------------
+# Hàm tạo subnet trong phpIPAM
+# -----------------------------
 function Create-SubnetInPhpIPAM {
     param (
         [string]$subnet,
         [int]$mask,
         [string]$leaseDuration = $null,
         [string]$subnetState = $null,
-        [string]$name,   # Add the name as a parameter
+        [string]$name,
         [bool]$logToFile = $false
     )
 
-    Write-Log "Creating subnet with description: '$name'" $logToFile  # Log the description
+    Write-Log "Creating subnet with description: '$name'" $logToFile
 
-    # Prepare data for creating subnet
     $subnetData = @{
         "subnet" = $subnet
         "mask" = $mask
         "sectionId" = $sectionId
-        "description" = $name       # Use the name from the DHCP scope as the description
+        "description" = $name
         "scanAgent" = $scanAgent
         "pingSubnet" = $pingSubnet
     }
@@ -177,6 +184,7 @@ function Create-SubnetInPhpIPAM {
     if ($useLeaseDuration -and $leaseDuration) {
         $subnetData["custom_$leaseDurationField"] = $leaseDuration
     }
+
     if ($useSubnetState -and $subnetState) {
         $subnetData["custom_$subnetStateField"] = $subnetState
     }
@@ -184,22 +192,21 @@ function Create-SubnetInPhpIPAM {
     $createSubnetUrl = "$apiBase/subnets/"
 
     try {
-        # Create HTTP request to phpIPAM API
+
         $request = [System.Net.HttpWebRequest]::Create($createSubnetUrl)
         $request.Method = "POST"
         $request.Headers.Add("token", $token)
         $request.ContentType = "application/json"
 
-        # Convert the data to JSON and send to phpIPAM
         $jsonData = $subnetData | ConvertTo-Json
         Write-Log "Sending POST request to create subnet with data: $jsonData" $logToFile
+
         $bytes = [System.Text.Encoding]::UTF8.GetBytes($jsonData)
         $request.ContentLength = $bytes.Length
         $requestStream = $request.GetRequestStream()
         $requestStream.Write($bytes, 0, $bytes.Length)
         $requestStream.Close()
 
-        # Get the response
         $response = $request.GetResponse()
         $stream = $response.GetResponseStream()
         $reader = New-Object System.IO.StreamReader($stream)
@@ -213,21 +220,22 @@ function Create-SubnetInPhpIPAM {
     }
 }
 
-# Function to update a subnet in phpIPAM
+# -----------------------------
+# Hàm cập nhật subnet trong phpIPAM
+# -----------------------------
 function Update-SubnetInPhpIPAM {
     param (
         [int]$subnetId,
-        [string]$name,   # Add the name as a parameter
+        [string]$name,
         [string]$leaseDuration = $null,
         [string]$subnetState = $null,
         [bool]$logToFile = $false
     )
 
-    Write-Log "Updating subnet with description: '$name'" $logToFile  # Log the description
+    Write-Log "Updating subnet with description: '$name'" $logToFile
 
-    # Prepare data for updating the subnet
     $updateData = @{
-        "description" = $name       # Use the name from the DHCP scope as the description
+        "description" = $name
         "scanAgent" = $scanAgent
         "pingSubnet" = $pingSubnet
     }
@@ -235,6 +243,7 @@ function Update-SubnetInPhpIPAM {
     if ($useLeaseDuration -and $leaseDuration) {
         $updateData["custom_$leaseDurationField"] = $leaseDuration
     }
+
     if ($useSubnetState -and $subnetState) {
         $updateData["custom_$subnetStateField"] = $subnetState
     }
@@ -242,22 +251,21 @@ function Update-SubnetInPhpIPAM {
     $updateSubnetUrl = "$apiBase/subnets/$subnetId/"
 
     try {
-        # Create the HTTP request
+
         $request = [System.Net.HttpWebRequest]::Create($updateSubnetUrl)
         $request.Method = "PATCH"
         $request.Headers.Add("token", $token)
         $request.ContentType = "application/json"
 
-        # Convert data to JSON and send the request
         $jsonData = $updateData | ConvertTo-Json
         Write-Log "Sending PATCH request to update subnet with data: $jsonData" $logToFile
+
         $bytes = [System.Text.Encoding]::UTF8.GetBytes($jsonData)
         $request.ContentLength = $bytes.Length
         $requestStream = $request.GetRequestStream()
         $requestStream.Write($bytes, 0, $bytes.Length)
         $requestStream.Close()
 
-        # Get the response
         $response = $request.GetResponse()
         $stream = $response.GetResponseStream()
         $reader = New-Object System.IO.StreamReader($stream)
@@ -272,7 +280,7 @@ function Update-SubnetInPhpIPAM {
 }
 
 # -----------------------------
-# Function to check if a subnet exists in phpIPAM
+# Hàm kiểm tra subnet đã tồn tại trong phpIPAM chưa
 # -----------------------------
 function Check-SubnetInPhpIPAM {
     param (
@@ -283,19 +291,17 @@ function Check-SubnetInPhpIPAM {
 
     $searchUrl = "$apiBase/subnets/search/$subnet/$mask"
     try {
-        # Create the HTTP request
+
         $request = [System.Net.HttpWebRequest]::Create($searchUrl)
         $request.Method = "GET"
         $request.Headers.Add("token", $token)
         $request.ContentType = "application/json"
 
-        # Get the response
         $response = $request.GetResponse()
         $stream = $response.GetResponseStream()
         $reader = New-Object System.IO.StreamReader($stream)
         $result = $reader.ReadToEnd()
 
-        # Convert the result to JSON
         $jsonResult = $result | ConvertFrom-Json
         Write-Log "Subnet ${subnet}/${mask} already exists in phpIPAM." $logToFile
         return $jsonResult.data
@@ -307,32 +313,29 @@ function Check-SubnetInPhpIPAM {
 }
 
 # -----------------------------
-# Function to process DHCP scopes
+# Hàm xử lý các DHCP Scopes
 # -----------------------------
 function Process-DhcpScopes {
-    param (
-        [bool]$logToFile = $false
-    )
+    param ([bool]$logToFile = $false)
 
-    # Retrieve DHCP scopes
     $scopes = Get-DhcpServerv4Scope
+
     foreach ($scope in $scopes) {
+
         $subnet = $scope.ScopeId.IPAddressToString
-        $mask = Convert-MaskToCIDR -mask $scope.SubnetMask.IPAddressToString  # Convert mask to CIDR
-        $name = $scope.Name.Trim()  # Ensure the name is cleaned up
-        Write-Log "Retrieved scope: Subnet $subnet, Mask $mask, Name '$name'" $logToFile  # Log the name field
+        $mask = Convert-MaskToCIDR -mask $scope.SubnetMask.IPAddressToString
+        $name = $scope.Name.Trim()
+        Write-Log "Retrieved scope: Subnet $subnet, Mask $mask, Name '$name'" $logToFile
+
         $leaseDuration = $scope.LeaseDuration
         $subnetState = if ($scope.State -eq 'Active') { "active" } else { "inactive" }
 
-
         Write-Log "Processing subnet $subnet with mask $mask and name '$name'" $logToFile
 
-        # Check if the subnet exists in phpIPAM
         $existingSubnet = Check-SubnetInPhpIPAM -subnet $subnet -mask $mask -logToFile $logToFile
 
         if (-not $existingSubnet) {
             Write-Log "phpIPAM reports that subnet $subnet/$mask does not exist. Attempting to create it." $logToFile
-            # If not, create the subnet in phpIPAM
             Create-SubnetInPhpIPAM -subnet $subnet -mask $mask -leaseDuration $leaseDuration -subnetState $subnetState -name $name -logToFile $logToFile
         } else {
             Write-Log "Subnet $subnet/$mask already exists in phpIPAM." $logToFile
@@ -341,6 +344,8 @@ function Process-DhcpScopes {
     }
 }
 
-# Start the process with optional logging
-$logToFile = $true  # Set to $false if you don't want to log to a file
+# -----------------------------
+# Bắt đầu xử lý
+# -----------------------------
+$logToFile = $true
 Process-DhcpScopes -logToFile $logToFile
